@@ -16,6 +16,9 @@
 ==================================================================== */
 package org.apache.poi.hpsf;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.poi.util.Internal;
 import org.apache.poi.util.LittleEndian;
 
@@ -54,15 +57,19 @@ class Vector
                     + longLength );
         final int length = (int) longLength;
 
-        _values = new TypedPropertyValue[length];
-
+        //BUG-61295 -- avoid OOM on corrupt file.  Build list instead
+        //of allocating array of length "length".
+        //If the length is corrupted and crazily big but < Integer.MAX_VALUE,
+        //this will trigger a RuntimeException (index out of bounds) when
+        //reading past the end of the data
+        List<TypedPropertyValue> values = new ArrayList<TypedPropertyValue>();
         if ( _type == Variant.VT_VARIANT )
         {
             for ( int i = 0; i < length; i++ )
             {
                 TypedPropertyValue value = new TypedPropertyValue();
                 offset += value.read( data, offset );
-                _values[i] = value;
+                values.add(value);
             }
         }
         else
@@ -72,9 +79,10 @@ class Vector
                 TypedPropertyValue value = new TypedPropertyValue( _type, null );
                 // be aware: not padded here
                 offset += value.readValue( data, offset );
-                _values[i] = value;
+                values.add(value);
             }
         }
+        _values = values.toArray(new TypedPropertyValue[values.size()]);
         return offset - startOffset;
     }
 

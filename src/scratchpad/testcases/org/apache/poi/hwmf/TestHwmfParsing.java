@@ -46,6 +46,7 @@ import org.apache.poi.sl.usermodel.PictureData;
 import org.apache.poi.sl.usermodel.PictureData.PictureType;
 import org.apache.poi.sl.usermodel.SlideShow;
 import org.apache.poi.sl.usermodel.SlideShowFactory;
+import org.apache.poi.util.RecordFormatException;
 import org.apache.poi.util.Units;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -60,7 +61,19 @@ public class TestHwmfParsing {
         List<HwmfRecord> records = wmf.getRecords();
         assertEquals(581, records.size());
     }
-    
+
+    @Test(expected = RecordFormatException.class, timeout = 60000)
+    public void testInfiniteLoop() throws Exception {
+        File f = POIDataSamples.getSlideShowInstance().getFile("61338.wmf");
+        FileInputStream fis = null;
+        try {
+            fis = new FileInputStream(f);
+            HwmfPicture wmf = new HwmfPicture(fis);
+        } finally {
+            fis.close();
+        }
+    }
+
     @Test
     @Ignore("This is work-in-progress and not a real unit test ...")
     public void paint() throws IOException {

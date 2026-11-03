@@ -162,8 +162,18 @@ public class Section
          * Read the offset from the stream's start and positions to
          * the section header.
          */
-        this.offset = LittleEndian.getUInt(src, o1);
-        o1 = (int) this.offset;
+        int offFix = (int) LittleEndian.getUInt(src, o1);
+
+        // some input files have a invalid (padded?) offset, which need to be fixed
+        // search for beginning of size field
+        if (src[offFix] == 0) {
+            for (int i=0; i<3 && src[offFix] == 0; i++,offFix++);
+            // cross check with propertyCount field and the property list field
+            for (int i=0; i<3 && (src[offFix+3] != 0 || src[offFix+7] != 0 || src[offFix+11] != 0); i++,offFix--);
+        }
+
+        this.offset = offFix;
+        o1 = offFix;
 
         /*
          * Read the section length.
@@ -201,13 +211,16 @@ public class Section
          *    one looks for property ID 1 and extracts the codepage number. The
          *    seconds pass reads the other properties.
          */
-        properties = new Property[propertyCount];
 
         /* Pass 1: Read the property list. */
         int pass1Offset = o1;
-        final List<PropertyListEntry> propertyList = new ArrayList<PropertyListEntry>(propertyCount);
+        /* Don't size the list / the properties array by the (untrusted)
+         * property count - a corrupt property count would otherwise trigger
+         * an OutOfMemoryError. Reading past the end of the stream fails with
+         * an exception instead. */
+        final List<PropertyListEntry> propertyList = new ArrayList<PropertyListEntry>();
         PropertyListEntry ple;
-        for (int i = 0; i < properties.length; i++)
+        for (int i = 0; i < propertyCount; i++)
         {
             ple = new PropertyListEntry();
 
@@ -267,6 +280,7 @@ public class Section
 
         /* Pass 2: Read all properties - including the codepage property,
          * if available. */
+        properties = new Property[propertyList.size()];
         int i1 = 0;
         for (final Iterator<PropertyListEntry> i = propertyList.iterator(); i.hasNext();)
         {

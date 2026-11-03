@@ -85,4 +85,19 @@ public class TestVariantSupport extends TestCase {
         assertEquals(1, (int)(Integer)items[1].getValue());
 
     }
+
+    /**
+     * Bug 61295 - a corrupt vector length must not lead to an OutOfMemoryError
+     */
+    public void test61295() {
+        // vector of VT_I4, claiming 0x7FFFFFFF entries, but only containing 2 of them
+        byte[] data = HexRead.readFromString("FF FF FF 7F 01 00 00 00 02 00 00 00");
+        Vector v = new Vector((short)Variant.VT_I4);
+        try {
+            v.read(data, 0);
+            fail("A vector length exceeding the data should be detected");
+        } catch (RuntimeException e) {
+            // expected - and no OutOfMemoryError
+        }
+    }
 }

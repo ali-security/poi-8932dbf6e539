@@ -33,6 +33,12 @@ import org.apache.poi.EmptyFileException;
 public final class IOUtils {
     private static final POILogger logger = POILogFactory.getLogger( IOUtils.class );
 
+    /**
+     * The default buffer size to use for the skip() methods.
+     */
+    private static final int SKIP_BUFFER_SIZE = 2048;
+    private static byte[] SKIP_BYTE_BUFFER;
+
     private IOUtils() {
         // no instances of this class
     }
@@ -234,5 +240,65 @@ public final class IOUtils {
             logger.log( POILogger.ERROR, "Unable to close resource: " + exc,
                     exc );
         }
+    }
+
+
+    /**
+     * Skips bytes from an input byte stream.
+     * This implementation guarantees that it will read as many bytes
+     * as possible before giving up; this may not always be the case for
+     * skip() implementations in subclasses of {@link InputStream}.
+     * <p>
+     * Note that the implementation uses {@link InputStream#read(byte[], int, int)} rather
+     * than delegating to {@link InputStream#skip(long)}.
+     * This means that the method may be considerably less efficient than using the actual skip implementation,
+     * this is done to guarantee that the correct number of bytes are skipped.
+     * </p>
+     * <p>
+     * This mimics POI's {@link #readFully(InputStream, byte[])}.
+     * If the end of file is reached before any bytes are read, returns <tt>-1</tt>. If
+     * the end of the file is reached after some bytes are read, returns the
+     * number of bytes read. If the end of the file isn't reached before <tt>len</tt>
+     * bytes have been read, will return <tt>len</tt> bytes.</p>
+     * <p>
+     * Copied nearly verbatim from commons-io 41a3e9c
+     * </p>
+     *
+     * @param input byte stream to skip
+     * @param toSkip number of bytes to skip.
+     * @return number of bytes actually skipped.
+     * @throws IOException              if there is a problem reading the file
+     * @throws IllegalArgumentException if toSkip is negative
+     * @see InputStream#skip(long)
+     *
+     */
+    public static long skipFully(final InputStream input, final long toSkip) throws IOException {
+        if (toSkip < 0) {
+            throw new IllegalArgumentException("Skip count must be non-negative, actual: " + toSkip);
+        }
+        if (toSkip == 0) {
+            return 0L;
+        }
+        /*
+         * N.B. no need to synchronize this because: - we don't care if the buffer is created multiple times (the data
+         * is ignored) - we always use the same size buffer, so if it it is recreated it will still be OK (if the buffer
+         * size were variable, we would need to synch. to ensure some other thread did not create a smaller one)
+         */
+        if (SKIP_BYTE_BUFFER == null) {
+            SKIP_BYTE_BUFFER = new byte[SKIP_BUFFER_SIZE];
+        }
+        long remain = toSkip;
+        while (remain > 0) {
+            // See https://issues.apache.org/jira/browse/IO-203 for why we use read() rather than delegating to skip()
+            final long n = input.read(SKIP_BYTE_BUFFER, 0, (int) Math.min(remain, SKIP_BUFFER_SIZE));
+            if (n < 0) { // EOF
+                break;
+            }
+            remain -= n;
+        }
+        if (toSkip == remain) {
+            return -1L;
+        }
+        return toSkip - remain;
     }
 }

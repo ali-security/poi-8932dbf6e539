@@ -435,8 +435,11 @@ public class PropertySet
          * Most property sets have only one section. The Document
          * Summary Information stream has 2. Everything else is a rare
          * exception and is no longer fostered by Microsoft.
+         *
+         * Don't size the list by the (untrusted) section count - a corrupt
+         * section count would otherwise trigger an OutOfMemoryError.
          */
-        sections = new ArrayList<Section>( sectionCount );
+        sections = new ArrayList<Section>();
 
         /*
          * Loop over the section descriptor array. Each descriptor

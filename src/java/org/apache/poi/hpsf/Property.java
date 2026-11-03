@@ -209,8 +209,9 @@ public class Property
         final long nrEntries = LittleEndian.getUInt(src, o);
         o += LittleEndian.INT_SIZE;
 
-        final Map<Object, Object> m = new LinkedHashMap<Object, Object>(
-                (int) nrEntries, (float) 1.0 );
+        /* Don't size the map by the (untrusted) number of entries - a corrupt
+         * entry count would otherwise trigger an OutOfMemoryError. */
+        final Map<Object, Object> m = new LinkedHashMap<Object, Object>();
 
         try
         {
@@ -227,6 +228,18 @@ public class Property
                  * off to create a Java string. */
                 long sLength = LittleEndian.getUInt(src, o);
                 o += LittleEndian.INT_SIZE;
+
+                /* Check that the string fits into the stream before allocating
+                 * any buffers for it - bogus lengths would otherwise trigger an
+                 * OutOfMemoryError. */
+                final long sByteLength =
+                    (codepage == CodePageUtil.CP_UNICODE) ? sLength * 2 : sLength;
+                if (sByteLength > 0xFFFFFF || o + sByteLength > src.length) {
+                    throw new HPSFRuntimeException
+                        ("Dictionary entry " + id + " has an invalid length of " +
+                         sLength + " while only " + (src.length - o) +
+                         " bytes are available.");
+                }
 
                 /* Read the string. */
                 final StringBuffer b = new StringBuffer();

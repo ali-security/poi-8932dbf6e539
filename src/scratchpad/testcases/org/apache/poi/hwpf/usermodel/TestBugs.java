@@ -901,4 +901,36 @@ public class TestBugs extends TestCase
         HWPFDocument hwpfDocument2 = HWPFTestDataSamples.writeOutAndReadBack(hwpfDocument);
         assertNotNull(hwpfDocument2);
     }
+
+    /**
+     * Bug 52372 - OutOfMemoryError parsing a word file
+     */
+    public void test52372() throws IOException {
+        InputStream is = POIDataSamples.getHPSFInstance().openResourceAsStream("TestBug52372.doc");
+        HWPFDocument doc;
+        try {
+            doc = new HWPFDocument(is);
+        } finally {
+            is.close();
+        }
+        assertNotNull(doc.getSummaryInformation());
+        assertNotNull(doc.getDocumentSummaryInformation());
+        assertEquals("TC101927549990",
+                doc.getDocumentSummaryInformation().getCustomProperties().get("_TemplateID"));
+
+        WordExtractor extractor = new WordExtractor(doc);
+        assertNotNull(extractor.getText());
+        assertNotNull(extractor.getMetadataTextExtractor().getText());
+
+        // the document - including its property sets - can be written out again
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        doc.write(bos);
+        NPOIFSFileSystem fs = new NPOIFSFileSystem(new java.io.ByteArrayInputStream(bos.toByteArray()));
+        try {
+            assertNotNull(fs.getRoot());
+        } finally {
+            fs.close();
+        }
+        extractor.close();
+    }
 }
